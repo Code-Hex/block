@@ -8,10 +8,12 @@
 import SpriteKit
 import GameplayKit
 
-class GameScene: SKScene {
+class GameScene: SKScene, SKPhysicsContactDelegate {
     enum PaddleDirection {
         case left, right
     }
+    
+    private let ballCategory: UInt32 = 0x1 << 1
     
     private let blockMargin: CGFloat = 16.0
     private let paddleSpeed = 2.0
@@ -19,6 +21,8 @@ class GameScene: SKScene {
     
     override init(size: CGSize) {
         super.init(size: size)
+        self.physicsBody = SKPhysicsBody(edgeLoopFrom: self.frame)
+        self.physicsWorld.contactDelegate = self
         self.addBlocks()
         self.addPaddle()
         self.addBall()
@@ -57,18 +61,49 @@ class GameScene: SKScene {
         let paddle = SKSpriteNode(texture: nil, color: SKColor.brown, size: CGSize(width: width, height: height))
         paddle.name = "paddle"
         paddle.position = CGPoint(x: self.frame.midX, y: y)
+        paddle.physicsBody = SKPhysicsBody(rectangleOf: paddle.size)
+        paddle.physicsBody!.isDynamic = false
         self.addChild(paddle)
         self.paddleNode = paddle
     }
     
     private func addBall() {
         let radius: CGFloat = 6.0
+        let velocityX: CGFloat = 50.0
+        let velocityY: CGFloat = 120.0
         
         let ball = SKShapeNode(circleOfRadius: radius)
         ball.fillColor = SKColor.yellow
         ball.strokeColor = SKColor.clear
         ball.position = CGPoint(x: self.paddleNode!.frame.midX, y: self.paddleNode!.frame.maxY + radius)
+        
+        ball.physicsBody = SKPhysicsBody(circleOfRadius: radius)
+        ball.physicsBody!.affectedByGravity = false
+        ball.physicsBody!.velocity = CGVector(dx: velocityX, dy: velocityY)
+        ball.physicsBody!.restitution = 1.0
+        ball.physicsBody!.linearDamping = 0
+        ball.physicsBody!.friction = 0
+        ball.physicsBody!.usesPreciseCollisionDetection = true
+        ball.physicsBody!.categoryBitMask = ballCategory
+        ball.physicsBody!.contactTestBitMask = 0x1 << 0
+        
         self.addChild(ball)
+    }
+    
+    func didBegin(_ contact: SKPhysicsContact) {
+        var body1, body2: SKPhysicsBody
+        if contact.bodyA.categoryBitMask < contact.bodyB.categoryBitMask {
+            body1 = contact.bodyA
+            body2 = contact.bodyB
+        } else {
+            body1 = contact.bodyB
+            body2 = contact.bodyA
+        }
+        
+        if BlockNode.isBlockCategory(bit: body1.categoryBitMask)  && body2.categoryBitMask & self.ballCategory != 0 {
+            let blockNode = body1.node as! BlockNode
+            blockNode.decrementLife()
+        }
     }
     
     override func mouseDown(with event: NSEvent) {
