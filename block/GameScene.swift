@@ -9,76 +9,88 @@ import SpriteKit
 import GameplayKit
 
 class GameScene: SKScene {
+    enum PaddleDirection {
+        case left, right
+    }
     
-    private var label : SKLabelNode?
-    private var spinnyNode : SKShapeNode?
+    private let blockMargin: CGFloat = 16.0
+    private let paddleSpeed = 2.0
+    private var paddleNode: SKSpriteNode?
     
-    override func didMove(to view: SKView) {
+    override init(size: CGSize) {
+        super.init(size: size)
+        self.addBlocks()
+        self.addPaddle()
+        self.addBall()
+    }
+    
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    private func addBlocks() {
+        // initial config
+        let rows = 5
+        let cols = 6
+        let margin = self.blockMargin
+        let width: CGFloat = (self.frame.width - (CGFloat(cols) + 1.0) * margin) / CGFloat(cols)
+        let height: CGFloat = 16.0
         
-        // Get label node from scene and store it for use later
-        self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
-        if let label = self.label {
-            label.alpha = 0.0
-            label.run(SKAction.fadeIn(withDuration: 2.0))
-        }
-        
-        // Create shape node to use during mouse interaction
-        let w = (self.size.width + self.size.height) * 0.05
-        self.spinnyNode = SKShapeNode.init(rectOf: CGSize.init(width: w, height: w), cornerRadius: w * 0.3)
-        
-        if let spinnyNode = self.spinnyNode {
-            spinnyNode.lineWidth = 2.5
-            
-            spinnyNode.run(SKAction.repeatForever(SKAction.rotate(byAngle: CGFloat(Double.pi), duration: 1)))
-            spinnyNode.run(SKAction.sequence([SKAction.wait(forDuration: 0.5),
-                                              SKAction.fadeOut(withDuration: 0.5),
-                                              SKAction.removeFromParent()]))
+        var y: CGFloat = self.frame.height - margin - height / 2
+        for _ in 0 ..< rows {
+            var x: CGFloat = margin + width / 2;
+            for _ in 0 ..< cols {
+                let block = BlockNode(w: Double(width), h: Double(height))
+                block.position = CGPoint(x: x, y: y)
+                self.addChild(block)
+                x += width + margin
+            }
+            y -= height + margin
         }
     }
     
-    
-    func touchDown(atPoint pos : CGPoint) {
-        if let n = self.spinnyNode?.copy() as! SKShapeNode? {
-            n.position = pos
-            n.strokeColor = SKColor.green
-            self.addChild(n)
-        }
+    private func addPaddle() {
+        let width = 70.0
+        let height = 14.0
+        let y: CGFloat = 40.0
+        
+        let paddle = SKSpriteNode(texture: nil, color: SKColor.brown, size: CGSize(width: width, height: height))
+        paddle.name = "paddle"
+        paddle.position = CGPoint(x: self.frame.midX, y: y)
+        self.addChild(paddle)
+        self.paddleNode = paddle
     }
     
-    func touchMoved(toPoint pos : CGPoint) {
-        if let n = self.spinnyNode?.copy() as! SKShapeNode? {
-            n.position = pos
-            n.strokeColor = SKColor.blue
-            self.addChild(n)
-        }
-    }
-    
-    func touchUp(atPoint pos : CGPoint) {
-        if let n = self.spinnyNode?.copy() as! SKShapeNode? {
-            n.position = pos
-            n.strokeColor = SKColor.red
-            self.addChild(n)
-        }
+    private func addBall() {
+        let radius: CGFloat = 6.0
+        
+        let ball = SKShapeNode(circleOfRadius: radius)
+        ball.fillColor = SKColor.yellow
+        ball.strokeColor = SKColor.clear
+        ball.position = CGPoint(x: self.paddleNode!.frame.midX, y: self.paddleNode!.frame.maxY + radius)
+        self.addChild(ball)
     }
     
     override func mouseDown(with event: NSEvent) {
-        self.touchDown(atPoint: event.location(in: self))
-    }
-    
-    override func mouseDragged(with event: NSEvent) {
-        self.touchMoved(toPoint: event.location(in: self))
-    }
-    
-    override func mouseUp(with event: NSEvent) {
-        self.touchUp(atPoint: event.location(in: self))
+        let location = event.location(in: self)
+        let pw = self.paddleNode!.size.width / 2
+        var moveToX: CGFloat = location.x
+        if location.x < pw {
+            moveToX = pw + self.blockMargin
+        } else if location.x > self.frame.maxX - pw {
+            moveToX = self.frame.maxX - pw - self.blockMargin
+        }
+        
+        let move = SKAction.moveTo(x: moveToX, duration: 0.5)
+        self.paddleNode?.run(move)
     }
     
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
-        case 0x31:
-            if let label = self.label {
-                label.run(SKAction.init(named: "Pulse")!, withKey: "fadeInOut")
-            }
+        case 123: addDirection(.left)
+        case 124: addDirection(.right)
+        case 0x31: // space
+            break
         default:
             print("keyDown: \(event.characters!) keyCode: \(event.keyCode)")
         }
@@ -87,5 +99,17 @@ class GameScene: SKScene {
     
     override func update(_ currentTime: TimeInterval) {
         // Called before each frame is rendered
+    }
+    
+    func addDirection(_ newDir: PaddleDirection) {
+        var x: CGFloat = self.paddleNode!.size.width
+        switch newDir {
+        case .left:
+            x *= -1
+        case .right:
+            x *= 1
+        }
+        let move = SKAction.move(to: CGPoint(x: self.paddleNode!.position.x + x, y: self.paddleNode!.position.y), duration: 1.0)
+        self.paddleNode?.run(move)
     }
 }
