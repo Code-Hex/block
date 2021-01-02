@@ -23,7 +23,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private let blockMargin: CGFloat = 16.0
     private let paddleSpeed = 2.0
     private var paddleNode: SKSpriteNode?
-    private var ballNode: SKShapeNode?
     private var lifeLabel: LifeLabel?
     
     init(size: CGSize, life: Int, stage: Int) {
@@ -91,16 +90,20 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         
         ball.physicsBody = SKPhysicsBody(circleOfRadius: radius)
         ball.physicsBody!.affectedByGravity = false
-        ball.physicsBody!.velocity = CGVector(dx: velocityX, dy: velocityY)
+        let accelerate = CGFloat(self.stage) * 0.5
+        ball.physicsBody!.velocity = CGVector(dx: velocityX + accelerate, dy: velocityY + accelerate)
         ball.physicsBody!.restitution = 1.0
         ball.physicsBody!.linearDamping = 0
         ball.physicsBody!.friction = 0
         ball.physicsBody!.usesPreciseCollisionDetection = true
         ball.physicsBody!.categoryBitMask = ballCategory
         ball.physicsBody!.contactTestBitMask = 0x1 << 0
-        self.ballNode = ball
-        
+        ball.name = "ball"
         self.addChild(ball)
+    }
+    
+    func getBall() -> SKShapeNode {
+        return self.childNode(withName: "ball") as! SKShapeNode
     }
     
     func didBegin(_ contact: SKPhysicsContact) {
@@ -115,7 +118,13 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         
         if BlockNode.isBlockCategory(bit: body1.categoryBitMask)  && body2.categoryBitMask & self.ballCategory != 0 {
             let blockNode = body1.node as! BlockNode
-            blockNode.decrementLife()
+            let erased = blockNode.decrementLife()
+            if erased {
+                self.removeFromParentWithSpark(node: blockNode)
+                if self.blockNodes().count < 1 {
+                    self.nextLevel()
+                }
+            }
         }
     }
     
@@ -168,10 +177,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     override func update(_ currentTime: TimeInterval) {
         // Called before each frame is rendered
         if Int(currentTime) % 5 == 0 {
-            var vec = self.ballNode?.physicsBody!.velocity
-            vec?.dx *= 1.001
-            vec?.dy *= 1.001
-            self.ballNode?.physicsBody!.velocity = vec ?? CGVector(dx: 1.0, dy: 1.0)
+            let ballNode = self.getBall()
+            var vec = ballNode.physicsBody!.velocity
+            vec.dx *= 1.001
+            vec.dy *= 1.001
+            ballNode.physicsBody!.velocity = vec
         }
     }
     
@@ -185,15 +195,15 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     }
     
     override func didEvaluateActions() {
-        if self.blockNodes().count < 1 {
-            self.nextLevel()
-        }
+       // TODO?
     }
     
     override func didSimulatePhysics() {
-        let ballY = self.ballNode!.position.y
-        let ballRadius = self.ballNode!.path!.boundingBox.width
+        let ballNode = self.getBall()
+        let ballY = ballNode.position.y
+        let ballRadius = ballNode.path!.boundingBox.width
         if ballY < ballRadius * 2 {
+            self.removeFromParentWithSpark(node: ballNode)
             if !self.decrementLife() {
                 self.gameOver()
             }
@@ -211,9 +221,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     }
     
     func resetPosition() {
-        let ballRadius = self.ballNode!.path!.boundingBox.width
+        self.addBall()
         self.paddleNode!.position = CGPoint(x: self.frame.midX, y: self.paddleNode!.position.y)
-        self.ballNode!.position = CGPoint(x: self.paddleNode!.frame.midX, y: self.paddleNode!.frame.maxY + ballRadius)
     }
     
     func gameOver() {
@@ -226,5 +235,21 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         let scene = GameScene(size: self.size, life: self.life, stage: self.stage + 1)
         let transition = SKTransition.push(with: .down, duration: 1.0)
         self.view?.presentScene(scene, transition: transition)
+    }
+    
+    private func removeFromParentWithSpark(node: SKNode) {
+        if let spark = SKEmitterNode(fileNamed: "spark.sks") {
+            spark.position = node.position
+            spark.xScale = 0.3
+            spark.yScale = 0.3
+            self.addChild(spark)
+            
+            let sequence = SKAction.sequence([
+                SKAction.fadeOut(withDuration: 0.3),
+                SKAction.removeFromParent(),
+            ])
+            spark.run(sequence)
+        }
+        node.removeFromParent()
     }
 }

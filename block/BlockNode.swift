@@ -24,15 +24,32 @@ class BlockNode: SKSpriteNode {
         fatalError("init(coder:) has not been implemented")
     }
     
-    public func decrementLife() {
+    public func decrementLife() -> Bool {
         if life > 0 {
             self.life -= 1
             self.alpha = CGFloat(self.life) * 0.2
-            
-            if life == 0 {
-                self.removeFromParent()
-            }
+            return life == 0
         }
+        return true
+    }
+    
+    private func removeFromParentWithSpark() {
+        if let spark = SKEmitterNode(fileNamed: "spark.sks") {
+            spark.position = self.position
+            spark.xScale = 0.3
+            spark.yScale = 0.3
+            self.addChild(spark)
+            
+            let sequence = SKAction.sequence([
+                SKAction.fadeOut(withDuration: 0.3),
+                SKAction.removeFromParent(),
+            ])
+            spark.run(sequence)
+            print("wow11111")
+        } else {
+            print("wow")
+        }
+        self.removeFromParent()
     }
     
     public static func isBlockCategory(bit: UInt32) -> Bool {
